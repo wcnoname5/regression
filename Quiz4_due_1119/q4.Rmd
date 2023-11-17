@@ -1,0 +1,782 @@
+---
+title: "Regression Analysis - Quiz 4"
+author: "Wei-Chen Chang r12227118"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    fig_caption: yes
+    extra_dependencies: ["amsmath"]
+---
+# Q1. (3.14, 5.5, 12.8)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center", out.width = "65%")
+library(tidyverse)
+library(stargazer)
+library(GGally)
+library(glmnet)
+```
+First, the scatterplot of Exhibit 3.7 can be seen in Figure \ref{fig:Q1scatter}.
+```{r Q1scatter, echo=FALSE, fig.cap="Scatter Plot of Exhibit 3.3", message=FALSE}
+E3_7 <- read_table("E3.7.txt",n_max = 20)
+
+E3_7[-1] %>% ggpairs()
+```
+
+
+```{r nah, eval=FALSE, message=FALSE, include=FALSE}
+E3_7[E3_7$x_4<60, ]
+```
+```{r descriptive, eval=FALSE, include=FALSE}
+#summary(E3_7)
+E3_7 %>% 
+  select(-Day) %>% 
+  reframe(type = colnames(subset(E3_7, select = -c(Day))) ,
+            mean = colMeans(subset(E3_7, select = -c(Day))) ,
+            sd = apply(subset(E3_7, select = -c(Day)),2, sd) )
+
+E3_7 %>% plot()
+#  round(2)
+cor(E3_7) %>% round(2)
+```
+
+## 3.14
+1.    Fit a multiple regression model using \(y\) as the dependent variable
+and all \(x_i\)'s as the independent variables. 
+
+2.    Now fit a regression model with only the independent variables \(X_3\) 
+and \(X_5\). How do the new parameters, the corresponding value of \(R^2\) 
+and the t-values compare with those obtained from the full model? 
+```{r E3.7, include = FALSE, echo=FALSE, warning=FALSE}
+full_mod <- lm(data = E3_7, 
+             y ~ x_1 + x_2 + x_3 + x_4 + x_5)
+reduce_mod <- lm(data = E3_7, y ~ x_3 + x_5)  
+
+ stargazer(full_mod, reduce_mod,type = "text", report = "vc*t")
+stargazer(full_mod, reduce_mod, report = "vc*t",
+          star.cutoffs = c(.05,.01,.001))
+
+```
+### Ans:
+See Table \ref{table:regQ1} for the results. For the full model, only the coefficients of constant(intercept) and and X5 were significant. For the reduced model: (1)the coefficients have smaller value for constant term, and didn't change much in $x_3$ and $x_5$. (2) Smaller $R^2$ compared to full model.  (3) larger (absolute) t-values for all remaining covariates. 
+
+```{=latex}
+\begin{table}[!ht] \centering 
+  \caption{Regression Table for Data in Exhibit 3.7} 
+  \label{table:regQ1} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{y} \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ x\_1 & $-$0.00001 &  \\ 
+  & t = $-$0.017 &  \\ 
+  & & \\ 
+ x\_2 & 0.001 &  \\ 
+  & t = 1.041 &  \\ 
+  & & \\ 
+ x\_3 & 0.0001 & 0.0001$^{*}$ \\ 
+  & t = 1.662 & t = 2.726 \\ 
+  & & \\ 
+ x\_4 & 0.008 &  \\ 
+  & t = 0.564 &  \\ 
+  & & \\ 
+ x\_5 & 0.0001 & 0.0001$^{*}$ \\ 
+  & t = 1.921 & t = 2.676 \\ 
+  & & \\ 
+ Constant & $-$2.156$^{*}$ & $-$1.371$^{***}$ \\ 
+  & t = $-$2.360 & t = $-$6.988 \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 20 & 20 \\ 
+R$^{2}$ & 0.811 & 0.787 \\ 
+Adjusted R$^{2}$ & 0.743 & 0.762 \\ 
+Residual Std. Error & 0.262 (df = 14) & 0.252 (df = 17) \\ 
+F Statistic & 11.989$^{***}$ (df = 5; 14) & 31.439$^{***}$ (df = 2; 17) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.05; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+```
+
+
+## 5.5
+For the two regressions in Exercise 3.14, p. 79, can one assume normality of the errors?
+
+### Ans:
+Here we draw Q-Q plot for residuals in both models to check the validity of normality assumption (Figure \ref{fig:qqp}).
+From the plots below, one can see for the extreme data points, residuals seems to deviate
+from theoretical value. The normality assumption may not held in both models.
+```{r qqp,echo=FALSE,fig.cap="Q-Q plots", out.width="50%"}
+ par(mfrow=c(1,2))
+qqnorm(full_mod$residuals, main = "Normal Q-Q plot of residuals\n\ in Full Model"
+       );qqline(full_mod$residuals, col=2)
+
+qqnorm(reduce_mod$residuals, main = "Normal Q-Q plot of residuals\n in Reduced Model"
+       );qqline(reduce_mod$residuals, col=2)
+
+```
+
+
+
+## 12.8 
+Try both ridge regression and principle components regression on the data of Exercise 3.14, p. 79.
+How does removing outliers affect your results?
+
+### Ans:
+For ridge regression, package `glmnet` was used, and using leave-one-out cross validation (`cv.glmnet()` function) to choose $\lambda$ (See left panel of Figure
+\ref{fig:ridge}).
+Here $\lambda$ with the smallest MSE were chosen and the regularized coefficients were shown in Table  \ref{table:ridge_coef}.
+
+For principle component regression, first scaling all covariates and perform PCA. 
+The first 2 components explains the variance of the data up to 0.8669, so here I
+just extract first 2 principle components from the data.
+Finally, regress $y$ on the 3 principle components. 
+The result can be seen at Table \ref{table:pca}. Seemingly there's a better fit compared to the
+original regression. 
+```{r PCA, include=FALSE}
+mask <- E3_7$y<1.5 & E3_7$x_4>60
+
+## Following Codes were assist by ChatGPT
+# Standardize the predictor variables (optional but recommended for PCR)
+scaled_data <- scale(E3_7[-c(1,7)])
+.scaled_data <- scale(E3_7[mask,-c(1,7)])
+# Perform principal component analysis (PCA)
+pca_result <- prcomp(scaled_data)
+.pca_result <- prcomp(.scaled_data)
+# Display the summary of the PCA
+
+```
+
+
+```{r PCA result, include=FALSE}
+cat("Full Sample: \n")
+summary(pca_result)
+cat("Drop Outliers: \n")
+summary(.pca_result)
+```
+
+
+```{r PCRegress , include=FALSE}
+# First 3 components explains the variance of the data up to 0.94043  
+# Number of principal components to retain (you can choose based on scree plot, cumulative variance, etc.)
+
+# Use the selected principal components as predictors
+pcr_data <- predict(pca_result, newdata = scaled_data)[, 1:2]
+.pcr_data <- predict(.pca_result, newdata = .scaled_data)[, 1:2]
+# Combine with the response variable (mpg in this example)
+response_variable <- E3_7$y
+pcr_data <- cbind(response_variable, pcr_data)
+
+# Fit a linear regression model using the principal components
+pcr_model <- lm(response_variable ~ ., data = as.data.frame(pcr_data))
+
+.pcr_model <- lm(V1 ~ .,
+                 data = as.data.frame(cbind(E3_7$y[mask], .pcr_data)))
+# Display the summary of the PCR model
+summary(pcr_model)
+
+stargazer(pcr_model,.pcr_model,
+          star.cutoffs = c(.05, .01,.001), type = "text")
+stargazer(pcr_model,.pcr_model,
+          star.cutoffs = c(.05, .01,.001))
+```
+
+
+
+Lastly, we drop 2 data points, one with $y>1.5$
+and the other $x_4<60$ as outliers(roughly using eyeball-testing from Figure \ref{fig:Q1scatter})
+and run both ridge regression and principal component regression. The results
+can be also seen in Figure \ref{fig:ridge} and Table \ref{table:pca}.
+
+In ridge regression shows both smaller MSE for the appropriate $\lambda$
+and smaller regression coefficients. And in principal component regression, higher
+variance explained by first 2 principle component (up to 0.9060) and better the model fits.
+```{r ridge, echo=FALSE, fig.cap="MSE",warning=FALSE,out.width="60%",fig.pos="ht"}
+
+mask <- E3_7$y<1.5 & E3_7$x_4>60
+.N <- nrow(E3_7)
+# Standardized the covariates
+std_iv <- scale(as.matrix(E3_7[-c(1,7)]))
+
+# Fit Ridge regression model using cross-validation to choose lambda
+ridge_model <- cv.glmnet(std_iv, E3_7$y, alpha = 0, #alpha=0 ridge
+                         nfolds = .N) #LOO cv
+
+# Print the cross-validated results
+
+par(mfrow= c(1,2))
+plot(ridge_model, main="Full Sample(n=20)")
+.cffull <- coef(ridge_model, s= ridge_model$lambda.1se) %>% as.matrix()
+
+.std_iv <- scale(as.matrix(E3_7[mask,-c(1,7)]))
+
+# Fit Ridge regression model using cross-validation to choose lambda
+.ridge_model <- cv.glmnet(.std_iv, E3_7$y[mask], alpha = 0, #alpha=0 ridge
+                         nfolds = 18) #LOO cv
+
+# Print the cross-validated results
+
+plot(.ridge_model, main = "Drop Outliers(n=18)")
+.cfdrop<- coef(.ridge_model, s= ridge_model$lambda.1se) %>% as.matrix()
+
+ss <- cbind(.cffull,.cfdrop) %>%
+  as.data.frame() 
+
+colnames(ss) <- c("Full Sample", "Drop Outlier")
+ # ss %>%   xtable::xtable(digits = 3,
+ #                         caption = "coefficients of ridge regression",
+ #                         label = "ridge_coef")
+```
+
+```{=latex}
+% latex table generated in R 4.2.3 by xtable 1.8-4 package
+% Fri Nov 17 22:21:55 2023
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrr}
+  \hline
+ & Full Sample & Drop Outlier \\ 
+  \hline
+(Intercept) & 0.119 & 0.058 \\ 
+  x\_1 & 0.060 & 0.039 \\ 
+  x\_2 & 0.017 & 0.010 \\ 
+  x\_3 & 0.069 & 0.051 \\ 
+  x\_4 & 0.055 & 0.048 \\ 
+  x\_5 & 0.070 & 0.041 \\ 
+   \hline
+\end{tabular}
+\caption{coefficients of ridge regression} 
+\label{table:ridge_coef}
+\end{table}
+```
+
+```{=latex}
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+\begin{table}[ht] \centering 
+  \caption{ Principal Component Regression} 
+  \label{table:pca} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & response\_variable & V1 \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ PC1 & $-$4.322$^{*}$ & $-$2.589$^{***}$ \\ 
+  & (1.720) & (0.546) \\ 
+  & & \\ 
+ PC2 & $-$3.296 & $-$5.493 \\ 
+  & (4.624) & (2.823) \\ 
+  & & \\ 
+ Constant & 0.119 & 0.058 \\ 
+  & (0.084) & (0.047) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 20 & 18 \\ 
+R$^{2}$ & 0.529 & 0.789 \\ 
+Adjusted R$^{2}$ & 0.474 & 0.761 \\ 
+Residual Std. Error & 0.375 (df = 17) & 0.199 (df = 15) \\ 
+F Statistic & 9.560$^{**}$ (df = 2; 17) & 28.025$^{***}$ (df = 2; 15) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.05; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+```
+
+# Q2. (3.11, 3.18)
+```{r E3_6, message=FALSE, include=FALSE}
+E3_6 <-
+  read_table("E3.6.txt",
+    n_max =50) %>%
+  mutate(sal_rat = Y84/Y83, sal_diff = Y84 -Y83)
+```
+
+## 3.11
+Exhibit 3.6 provides data on salaries (Y84, Y83) for 1984 
+and 1983 for chairmen of the 50 largest corporations in the Chicago area. 
+Data are also provided on their age (AGE), the number of shares they hold 
+(SHARES) and the total revenues (REV) and the total income (INC) of 
+the companies they head.
+Based on the data write a report on the factors that affect the raises given
+company chairmen.
+
+### Ans:
+Fist, we evaluate the raises by both ratio and difference of salary
+(called sal_rat and sal_diff respectively) between 1983 and 1984.
+Then naively draw a scatter plot to see the relation between covariates. 
+(See Figure \ref{fig:Q2scatter})
+Because the scale difference in SHARES, REV, INC are very large,
+log-transformation is performed for better visualization.
+
+```{r Q2scatter, echo=FALSE, message=FALSE,fig.cap="Scatter Plot of Exhibit 3.6"}
+# E3_6 %>%
+#   #mutate(across(2:5,log))%>%
+#   select(-c(1)) %>% 
+#   ggpairs()
+E3_6 %>%
+  mutate(across(c(3:5,7),log))%>%
+  select(-c(1)) %>% 
+  ggpairs() +ggtitle("SHARES, REV, INV log transformed")
+```
+
+As Figure \ref{fig:Q2scatter} shows , it seems Y83 have a non-linear negative relation with the salary change.
+Thus the following two models were proposed 
+\[
+\begin{aligned}
+Raise &= \beta_0+\beta_1Y_{83} + SHARES + REV + INV + AGE \\
+Raise &= \beta_0+\beta_1Y_{83} +\beta_2\frac{1}{Y_{83}} + SHARES + REV + INV + AGE \\
+\end{aligned}
+\]
+
+```{r, include=FALSE}
+OLS_rat <-  lm(sal_rat ~ Y83 + SHARES + REV + INC + AGE,
+               E3_6)
+OLS_diff <-  lm(sal_diff ~ Y83 + SHARES + REV + INC + AGE,
+               E3_6)
+OLS_diffl <- lm(sal_diff ~ Y83 + I(1/Y83) + SHARES + REV + INC + AGE,
+               E3_6)
+OLS_ratl <-  lm(sal_rat ~ Y83+ I(1/Y83) + SHARES + REV + INC + AGE,
+               E3_6)
+stargazer(OLS_rat, OLS_ratl, OLS_diff, OLS_diffl,# type = "text",
+          star.cutoffs = c(.05,.01,.001),
+          digits=2, dep.var.labels = c("salary ratio", "salary difference"))
+
+# E3_6$Y83 %>% range()
+```
+The results are summarized in Table \ref{table:sal_reg}.
+In this simple analysis it seems like the only robust factor affect salary raise is the
+salary at last year. Higher salary lead to
+lesser raise in both ratio and difference measure.
+
+```{=latex}
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+\begin{table}[!ht] \centering 
+  \caption{ Regression Table for Data in Exhibit 3.6} 
+  \label{table:sal_reg} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{4}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-5} 
+\\[-1.8ex] & \multicolumn{2}{c}{salary ratio} & \multicolumn{2}{c}{salary difference} \\ 
+\\[-1.8ex] & (1) & (2) & (3) & (4)\\ 
+\hline \\[-1.8ex] 
+ Y83 & $-$0.0000$^{***}$ & 0.0000 & $-$0.20$^{**}$ & 0.06 \\ 
+  & (0.0000) & (0.0000) & (0.06) & (0.14) \\ 
+  & & & & \\ 
+ I(1/Y83) &  & 408,221.60$^{***}$ &  & 98,893,674,520.00$^{*}$ \\ 
+  &  & (98,394.74) &  & (45,491,424,680.00) \\ 
+  & & & & \\ 
+ SHARES & 0.00 & $-$0.0000 & $-$0.02 & $-$0.03 \\ 
+  & (0.0000) & (0.0000) & (0.01) & (0.01) \\ 
+  & & & & \\ 
+ REV & 0.0000 & $-$0.0000 & 0.26 & $-$0.65 \\ 
+  & (0.0000) & (0.0000) & (2.95) & (2.87) \\ 
+  & & & & \\ 
+ INC & 0.0001 & 0.0001 & 66.48 & 70.05 \\ 
+  & (0.0001) & (0.0001) & (60.03) & (57.67) \\ 
+  & & & & \\ 
+ AGE & $-$0.01 & $-$0.001 & $-$43.10 & 1,312.20 \\ 
+  & (0.01) & (0.005) & (2,259.79) & (2,257.58) \\ 
+  & & & & \\ 
+ Constant & 1.84$^{***}$ & 0.11 & 189,284.10 & $-$230,892.90 \\ 
+  & (0.32) & (0.50) & (133,394.40) & (231,868.90) \\ 
+  & & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 50 & 50 & 50 & 50 \\ 
+R$^{2}$ & 0.29 & 0.49 & 0.28 & 0.35 \\ 
+Adjusted R$^{2}$ & 0.20 & 0.42 & 0.19 & 0.26 \\ 
+Residual Std. Error & 0.24 (df = 44) & 0.20 (df = 43) & 97,185.56 (df = 44) & 93,314.97 (df = 43) \\ 
+F Statistic & 3.51$^{**}$ (df = 5; 44) & 6.87$^{***}$ (df = 6; 43) & 3.34$^{*}$ (df = 5; 44) & 3.81$^{**}$ (df = 6; 43) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{4}{r}{$^{*}$p$<$0.05; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+```
+
+
+## 3.18
+It has been conjectured that aminophylline retards blood flow in the brain.
+But since blood flow depends also on cardiac output (\(x_1\) and carbon dioxide 
+level in the blood (\(x_2\),
+the following models were postulated: 
+\[
+\begin{aligned}
+y_i^{(1)} &=\beta + \beta_1 x_{i1}^{(1)} + \beta_2x_{i2}^{(1)} + \epsilon_i^{(1)}
+\quad \text{(Without aminophylline)}\\
+y_i^{(2)} &= 
+\beta_0 + \beta_1 x_{i1}^{(2)} + \beta_2x_{i2}^{(2)} + \epsilon_i^{(2)} 
+\quad \text{(With aminophylline)}\\
+\end{aligned}
+\]
+Using the data of Exhibit 3.9 test, at a 5% level, the hypothesis \(\beta= \beta_0\)
+against the alternative that \(\beta> \beta_0\) assuming the observations
+are all independent.
+Actually the observations are not independent:
+Each row of Exhibit 3.9 represents the same subject.
+Now how would you test the hypothesis? 
+
+### Ans: 
+The model can be rewrite as:
+\[
+\begin{aligned}
+y_i &= 
+\beta + \gamma I_i  + \beta_1 x_{i1} + \beta_2x_{i2} + \epsilon_i \\
+I_i &= \begin{cases}
+      0, & \text{if without aminophylline}\ \\
+      1, & \text{otherwise}
+    \end{cases} 
+\end{aligned}
+\]
+And the hypothesis can be restate as $\gamma = 0 \text{ against } \gamma>0$.
+After cleaning the data with their group labeling, we can perform the
+regression with the new model.
+```{r read 3.9, message=FALSE, warning=FALSE, include=FALSE}
+E3_9 <- read_table("E3.9.txt", col_types = list(y_1 = col_double()),
+    skip = 1, n_max = 9)
+
+E3_9na <- E3_9[1:3] %>% 
+  mutate(ID = as.factor(1:nrow(E3_9)),
+        ap = 0)
+E3_9a <-E3_9[4:6] %>% 
+  rename(all_of(c(x_1 = "x_1_1", x_2 = "x_2_1", y = "y_1"))
+    ) %>% 
+  mutate(ID = as.factor(1:nrow(E3_9)),
+        ap = 1)
+dta3_9 <- bind_rows(E3_9na, E3_9a)
+dta3_9 %>% head()
+
+```
+
+```{r model, include=FALSE}
+m318 <- lm(y~ ap + x_1 + x_2 , dta3_9)
+
+m318_rm <- lm(y ~ ap + x_1 + x_2 + ID, dta3_9) 
+stargazer(m318, m318_rm,
+          star.cutoffs = c(.05,.01,.001))
+```
+See left panel Table \ref{table:ami_reg} for the results. For $\gamma$, \(p = .2252\), thus retain $H_0: \gamma =0$ at 5% level.
+
+For treating dependent observations, modifying the model as below:
+\[
+\begin{aligned}
+y_{is} &= 
+\beta + \pi_s + \gamma I_{i} + \beta_1 x_{is1} + \beta_2x_{is2} + \epsilon_{is} \\
+I_{i} &= \begin{cases}
+      0, & \text{if without aminophylline}\ \\
+      1, & \text{otherwise}
+    \end{cases} 
+\end{aligned}
+\]
+where the subscript $s$ represent different subject, and we assume different intercept (as $\beta +\pi_s$) for each subject. The model control the effect 
+from individual difference.
+
+The result can be seen in right panel of Table \ref{table:ami_reg} (Note: all $\pi_s$ coefficients were non-significant thus omitted in the table).
+There's a poor fit may due to the small
+observation for each subject.
+```{=latex}
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+\begin{table}[ht] \centering 
+  \caption{Regression Table of data in Exhibit 3.9} 
+  \label{table:ami_reg} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{y} \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ ap & 3.241 & 4.328 \\ 
+  & (2.555) & (3.382) \\ 
+  & & \\ 
+ x\_1 & 0.018$^{*}$ & 0.007 \\ 
+  & (0.007) & (0.044) \\ 
+  & & \\ 
+ x\_2 & $-$0.247 & 0.366 \\ 
+  & (0.212) & (0.560) \\ 
+  & & \\ 
+$\pi_s$ & - & $\vdots$ \\
+\\
+ Constant & 18.132$^{*}$ & $-$2.171 \\ 
+  & (7.909) & (26.939) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 18 & 18 \\ 
+R$^{2}$ & 0.415 & 0.697 \\ 
+Adjusted R$^{2}$ & 0.289 & 0.141 \\ 
+Residual Std. Error & 5.336 (df = 14) & 5.867 (df = 6) \\ 
+F Statistic & 3.308 (df = 3; 14) & 1.254 (df = 11; 6) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.05; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+```
+
+
+\newpage
+
+# Q3. (6.6, 6.11)
+
+## 6.6 
+
+### Ans:
+The model can be rewrite as 
+\[
+\mathbf{y = X\beta + \epsilon}
+\]
+
+where \(\mathbf{y} = \begin{pmatrix}y_1 & ... &y_n\end{pmatrix}^T\)  is a \(n\times1\) vector,
+ \(\mathbf{X} = \begin{pmatrix}\mathbf{x_1} & ... &\mathbf{x_n}\end{pmatrix}^T\) is a \(n\times k+1\) matrix and \(\mathbf{\epsilon} = \begin{pmatrix}\epsilon_1&...&\epsilon_n\end{pmatrix}^T\)
+is a \(n\times1\) vector.
+For the repeated data, we have a the new model
+\[
+\mathbf{Dy = DX\beta + D\epsilon}
+\]
+where \(\mathbf{D}= \begin{pmatrix}
+\mathbf{1_1}&\mathbf{0}&\cdots&\mathbf{0} \\
+\mathbf{0}&\mathbf{1_2}&\cdots&\mathbf{0} \\
+\vdots&\vdots&\ddots&\vdots\\
+\mathbf{0}&\mathbf{0}&\cdots&\mathbf{1_n}
+\end{pmatrix}\), and \(\mathbf{1_i}  = \begin{pmatrix}1&1&\cdots&1\end{pmatrix}^T\) with its length = \(w_i\) for \(i = 1,...,n\).
+
+
+For least square estimate, one want to minimize 
+\[
+\begin{aligned}
+Q(\beta)&=\mathbf{(Dy-DX\beta)^T(Dy-DX\beta)} \\
+&= \mathbf{(y^*-X^*\beta)^T(y^*-X^*\beta)}.    
+\end{aligned}
+\]
+
+Take the first derivative with respect to \(\beta\), the result yields \[\mathbf{X^{*T}X^*\beta} = \mathbf{X^{*T}y^*}.\]
+
+And \[
+\begin{aligned}
+\hat\beta &= \mathbf{(X^{*T}X^*)^{-1} X^{*T}y^*} \\
+        &= \mathbf{(X^TD^TDX)^{-1}X^TD^TDy}    \\
+        &= \mathbf{(X^TWX)^{-1}X^TWy}
+\end{aligned}
+\]
+For the final result, because \(\mathbf{1_i^T}\mathbf{1_i} = w_i\), thus \(\mathbf{D^TD} =
+\begin{pmatrix}
+    w_1&{0}&\cdots&{0} \\
+    {0}&{w_2}&\cdots&{0} \\
+    \vdots&\vdots&\ddots&\vdots\\
+    {0}&{0}&\cdots&{w_n}
+\end{pmatrix} =  \mathbf{W}\).
+
+For \(\sum_{i=1}^{n}w_i(y_i-\hat y_i)^2\). Let \(\mathbf{\hat{y} = X\hat\beta = Hy}\), where \(\mathbf{H = X(X^TWX)^{-1}X^TW}\) is idempotent. 
+\(\sum_{i=1}^{n}w_i(y_i-\hat y_i)^2\) then can be rewrite as 
+\(\mathbf{((I-H)y)^TW(I-H)y}\), and its expectation is: 
+\[
+\begin{aligned}
+    E(\mathbf{y^T(I-H^T)W(I-H)y}) &= E(tr(\mathbf{y^T(I-H)W(I-H)y})) \\
+        &=E(tr(\mathbf{yy^T(I-H^T)W(I-H)})) \\
+        &=tr(E(\mathbf{yy^T})\mathbf{(I-H^T)W(I-H)})\\
+        &=tr(\sigma^2 \mathbf{W^{-1}(I-H^T)W(I-H)})\\
+%        &=\sigma^2 tr( \mathbf{(W^{-1}IW-W^{-1}H^TW)(I-H)})\\
+        &=\sigma^2 tr( \mathbf{(I-H)(I-H)})\\
+%        &=\sigma^2 tr( \mathbf{I-H})\\
+        &=\sigma^2 rank( \mathbf{I-H})\\
+        &=\sigma^2 (n - k - 1)
+\end{aligned}
+\]
+Thus \(\hat\sigma^2=\frac{\sum_{i=1}^{n}w_i(y_i-\hat y_i)^2}{n-k-1}\) is a unbiased estimator of \(\sigma^2\)
+
+
+## 6.11
+As noted in Chapter 1, a classical problem in regression is that of relating heights of sons to heights of fathers.
+Using the data of Exhibit 6.11, obtain an appropriate relationship. Obviously, one needs to weight.
+If the number of sons for each height category were available, that 
+variable would have provided the appropriate weights (why?).
+What would you do with the data given and why? 
+
+### Ans: 
+Suppose the model is 
+\[
+\begin{aligned}
+    y_{ij_{i}} &= \beta_0+ x_i\beta_1 + \epsilon_{ij_{i}} \\
+\end{aligned}
+\]
+Where $y_{ij_{i}}$ is the height of the $j_i$th son which father's height equals to $x_i$, $i = 1,...,n$, $j_i = 1,...,w_i$. 
+Here $n$ represent total levels of father's height, $w_i$ represent the number of observation whose father's height is just $x_i$.
+
+Now we didn't have every observation of $y_{ij_i}$, but only their mean  $\bar{y_i} = \frac{1}{w_i}\sum_{j_i =1}^{wi}y_{ij_{i}}.$ However, we know that $E(\bar y_i) = \beta_0 + x_i \beta_1$
+and $Var(\bar y_i) = \frac{1}{w_i^2}\sum_{j_i =1}^{wi}Var(y_{ij_{i}}) =\frac{\sigma^2}{w_i}$, the model of $\bar y$ can be expressed as:
+\[
+\begin{aligned}
+    \mathbf{\bar Y}  &= \mathbf{X\beta + \epsilon} \\
+    \text{where } \mathbf{\bar Y} &= \begin{pmatrix}
+        \bar{y}_1&\cdots&\bar{y}_n,
+    \end{pmatrix}^T, \\
+    \mathbf{X} &= \begin{pmatrix}
+        1&\cdots&1\\
+        x_1&\cdots& x_n\\
+    \end{pmatrix}^T, \\
+    \text{and } Cov(\epsilon) &= \sigma^2 \mathbf{diag}\begin{pmatrix}
+        w_1&\cdots&w_n
+    \end{pmatrix}  ^{-1} = \sigma^2\mathbf{W}^{-1}
+\end{aligned}
+\]
+Note that the model has heteroscedastic error, thus use weighting to deal with the problem:
+\[
+\begin{aligned}
+    \mathbf{W^{1/2}\bar Y}  &= \mathbf{W^{1/2} X\beta + W^{1/2} \epsilon}. \\
+\end{aligned}
+\]
+Now the error term is homoscedastic, apply the least square method on the equation would yield the estimate $\hat\beta = \mathbf{(X^TW X)^{-1}X^TWY}$, which is BLUE by Gauss-Markov theorem.
+
+Back to the example, if the number of sons for each category (i.e., $w_1,...,w_n$) were known, we can regress $\sqrt{w_i} \bar y_i$ on $\sqrt{w_i} x_i$ to attain BLUE.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+E6_11 <- read_table("E6.11.txt", 
+     n_max = 12)
+E6_11
+```
+
+# Q4. (7.7, 7.8)
+## 7.7
+Fit a model of the from
+\[
+\sqrt{y_t} = \beta_0+\beta_1t+\beta_2t^2+\beta_3t^3
+\]
+to these data, assuming the errors to be first order autoregressive. Why did 
+we take the square root of the dependent variable? 
+```{r message=FALSE, include=FALSE}
+E7_7<- tibble(
+  year = seq(1790, 1970, by=10),
+  pop = c(3929, 5308, 7239, 9638, 12866, 17069, 23191,
+          31443, 39818, 50155, 62947, 75994, 91972, 105710,
+          122775, 131669, 151325, 179323, 203211)
+)
+
+e77ts <- ts(data = c(3929, 5308, 7239, 9638, 12866, 17069, 23191,
+          31443, 39818, 50155, 62947, 75994, 91972, 105710,
+          122775, 131669, 151325, 179323, 203211),
+   start = 1790, end = 1970, frequency = 1/10)
+```
+
+```{r plotting growth, eval=FALSE, include=FALSE, out.width="50%"}
+plot(E7_7); lines(E7_7, lty = 2)
+```
+
+### Ans:
+Model fitting: using `arima()` to specify the model, the result is summarized in 
+Table \ref{table:popu}
+
+```{r eval=FALSE, include=FALSE}
+#Durbin-Watson Test
+library(car)
+car::durbinWatsonTest(
+  lm(pop~year, E7_7)
+)
+```
+
+```{r, echo=FALSE , include=FALSE}
+# model_with_ar1 <- arima(sqrt(E7_7$pop), order = c(1, 0, 0),
+#                         xreg = poly(E7_7$year, 3)
+#                         )
+ar1m <- arima(sqrt(e77ts), order = c(1, 0, 0), 
+                        xreg = poly(time(e77ts), 3)
+                        )
+ar2m <- arima(e77ts, order = c(1, 0, 0), 
+                        xreg = poly(time(e77ts), 3)
+                        )
+stargazer(ar1m, ar2m, # type ="text",
+          star.cutoffs = c(.05, .01, .001),
+          dep.var.labels = c("sqrt(y)","y")
+          )
+```
+The reason why using a square root transform is because the scale of y is too
+large, taking a square root would make residual smaller and the better fit.
+
+```{=latex}
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+\begin{table}[!ht] \centering 
+  \caption{Regression Table for 7.7} 
+  \label{table:popu} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & sqrt(y) & y \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ ar1 & 0.515$^{*}$ & 0.385 \\ 
+  & (0.211) & (0.223) \\ 
+  & & \\ 
+ intercept & 234.306$^{***}$ & 69,832.350$^{***}$ \\ 
+  & (1.664) & (851.177) \\ 
+  & & \\ 
+ 1 & 531.980$^{***}$ & 258,085.300$^{***}$ \\ 
+  & (6.661) & (3,522.925) \\ 
+  & & \\ 
+ 2 & 46.543$^{***}$ & 74,798.590$^{***}$ \\ 
+  & (6.194) & (3,321.568) \\ 
+  & & \\ 
+ 3 & $-$16.962$^{**}$ & 3,181.051 \\ 
+  & (5.556) & (3,220.667) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 19 & 19 \\ 
+Log Likelihood & $-$51.775 & $-$174.444 \\ 
+$\sigma^{2}$ & 13.409 & 5,477,990.000 \\ 
+Akaike Inf. Crit. & 115.550 & 360.889 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.05; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+```
+
+
+## 7.8
+
+In Exercise 7.7, \(y_{t+1} - y_t\) is approximately equal to the 
+number of births less deaths plus net immigration during the period \(t\) to 
+\(t + 1\). Since births and deaths are approximately proportional to \(y_t\), it is 
+reasonable to propose a model of the form 
+\[
+z_t = y_{t+1} - y_t = \beta_0 + \beta_1y_t + \epsilon_t· 
+\]
+Assuming \(\epsilon_t\) to be first order autoregressive, estimate \(\beta_0\) and \(\beta_1\).
+How would you forecast the 1980 population? 
+In this exercise we have ignored the fact that \(y_t\) is possibly heteroscedastic.
+Can you suggest a way to, at least crudely, compensate for it?
+
+### Ans:
+```{r include=FALSE,out.width="70%"}
+E7_7$dpop = c(NA, diff(E7_7$pop))
+plot(E7_7$year, E7_7$dpop,xlab = "Year",
+     ylab = "Increased populaiton",
+     main = "Population change per decade in US")
+plot(E7_7$year, log10(E7_7$dpop), xlab = "Year",
+     ylab = "Increased populaiton(log10)",
+     main = "Population change per decade in US")
+```
+Using the `predict()`, result is as such: the population change in 1980 in US is about 23762.
+```{r prdict, include=TRUE}
+pop_diff_model <- arima(diff(e77ts),
+                        order = c(1, 0, 0), 
+                        xreg = time(diff(e77ts))
+                        )
+predict(pop_diff_model, newxreg = 1980)$pred
+```
+A crudely solution for the heteroscedastic error is take a log-transformation of $z_t = y_t - y_{t-1}$ it would make the scale of the data smaller thus the error 
+variance would be much smaller too.
+
+# Appendix:
+Data (`.txt` files) and codes(`.R` and `.Rmd` files) for processing the data could be 
+found *[Here](https://github.com/wcnoname5/regression/tree/main/Quiz4_due_1119)*
