@@ -1,0 +1,484 @@
+---
+title: "Regression Analysis - Quiz 5"
+author: "Wei-Chen Chang r12227118"
+date: "Due: 2023-11-26"
+output:
+  pdf_document:
+    fig_caption: yes
+    extra_dependencies: ["amsmath"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.align = "center", out.width = "60%")
+library(tidyverse)
+library(stargazer)
+```
+
+
+```{r Load Data, include=FALSE}
+dta <- matrix(
+  c(
+    c(2.0340, 49, 16), c(2.7183, 24, 9), c(3.7062, 48, 34),
+    c(4.3929, 49, 47), c(5.0028, 50, 47), c(5.4739, 8, 8)
+    ),
+  ncol = 3,
+  byrow = TRUE,
+  dimnames = list(NULL,
+                  c("dose", "group_size", "positive_response")
+                  )
+  ) %>% 
+  as.data.frame() %>%
+  mutate(
+    #neg_response  = group_size - positive_response,
+    positive_prop  = positive_response/group_size
+  )
+```
+
+
+
+# Q1.
+Check if logit, probit, and complimentary log-log link functions are satisfactory for the model.
+
+Report statistical inference for the models, and the deviance and Pearson chi-square statistic for model goodness-of-fit.
+
+Check the model assumptions and residuals, including possible transformations of the variable. Examine prediction quality by prediction error for the models. State your conclusion.
+
+## Ans
+First, the data and the visualization of the data can be seen in Table \ref{table:glms} and Figure \ref{fig:des}.
+
+```{r include=FALSE}
+.m <- dta[c("dose","group_size", "positive_response")] %>% as.matrix() %>% 
+  t()
+colnames(.m) <-  paste("group", 1:6, sep = "_")
+dta[c("dose","group_size", "positive_response")] %>%
+  xtable::xtable(digits = 4, display = c("d","f","d","d"),label = "data",
+                 caption = "The Data")
+  #kbl(caption = "Data") %>% 
+  #kable_styling(position = "center")
+
+
+#knitr::kable(c(1,3,5),format = "latex")
+```
+
+
+
+The regression results can be seen in Table \ref{table:glms}.
+
+```{r list, message=FALSE, warning=FALSE, include=FALSE}
+model_list <- list()
+.link <-  c("logit","probit","cloglog")
+for (i in 1:3){
+  .lf <- .link[i]
+  .m <- glm(data=dta,
+    positive_prop ~ dose, family = binomial(.lf),
+    weights = group_size
+    )  
+  model_list <- c(model_list, list(.m))
+  
+} 
+names(model_list) <- .link
+
+for (i in 1:3){
+  .lf <- .link[i]
+  .m <- glm(data=dta,
+    positive_prop ~ dose, family = quasibinomial(.lf),
+    weights = group_size
+    )  
+  model_list <- c(model_list, list(.m))
+} 
+names(model_list)[4:6] <- paste0("quasibinom_",.link)
+
+
+```
+
+
+```{r des, message=F, echo=FALSE,fig.cap = "The Data and Fitting Curves.\n (error bar represent sample s.d., solid line for Logit, dashed-line for Probit, dot for Complementary log-log"}
+#| fig.cap = "The Data and Fitting Curves.\n (error bar represent sample s.e., solid line  
+#|  for logit, dashed-line for probit, dot for Complementary log-log)"
+dta %>%
+  mutate(se_per = sqrt(positive_prop * (1 - positive_prop) / group_size)) %>% 
+  # Create the bar chart with error bars
+  ggplot(aes(x = dose, y = positive_prop),
+         fill = "grey35")+ #, fill = as.factor(dose))) +
+    geom_point(size = 3) +
+    stat_smooth(data = dta, aes(weight = group_size),method="glm",
+                method.args=list(family=binomial("logit")),
+                se = FALSE, color = "red", lwd=1.1, lty=1) +
+    stat_smooth(data = dta, aes(weight = group_size),method="glm",
+              method.args=list(family=binomial("probit")),
+              se = FALSE, color = "darkcyan", lwd=1.1, lty=2)+
+    stat_smooth(data = dta, aes(weight = group_size),method="glm",
+              method.args=list(family=binomial("cloglog")),
+              se = FALSE, color = "darkorange", lwd=1.1, lty=3)+
+    geom_errorbar(aes(ymin = positive_prop - se_per,
+                      ymax = positive_prop + se_per),
+                  position = position_dodge(0.9), width = 0.2) +
+    scale_color_manual(values = c("red", "darkcyan", "darkorange"),
+                       name = c("Logit", "Probit", "Cloglog")) +
+    labs(x = "Dose",
+         y = "Proportion of Positive Response") +
+    theme_minimal()
+
+```
+
+```{r tab, message=FALSE, warning=FALSE, include=FALSE}
+stargazer(model_list, type= "text",
+          star.cutoffs = c(.05, .01,.001),
+          title = "Models",
+          label = "glms")
+#model_list$logit$df.residual
+```
+```{=latex}
+% Table created by stargazer v.5.2.3 by Marek Hlavac, Social Policy Institute. E-mail: marek.hlavac at gmail.com
+\begin{table}[!htbp] \centering 
+  \caption{Binominal Regression Models Results} 
+  \label{table:glms} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{6}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-7} 
+\\[-1.8ex] & \multicolumn{6}{c}{positive\_prop} \\ 
+\\[-1.8ex] & \textit{logistic} & \textit{probit} & \textit{glm: binomial} & \multicolumn{3}{c}{\textit{glm: quasi-binomial}} \\ 
+ & \textit{} & \textit{} & \textit{link = cloglog} & \textit{link = logit} & \textit{link = probit} & \textit{link = cloglog} \\ 
+\\[-1.8ex] & (1) & (2) & (3) & (4) & (5) & (6)\\ 
+\hline \\[-1.8ex] 
+ dose & 1.320$^{***}$ & 0.776$^{***}$ & 0.761$^{***}$ & 1.320$^{**}$ & 0.776$^{**}$ & 0.761$^{**}$ \\ 
+  & (0.176) & (0.096) & (0.100) & (0.206) & (0.109) & (0.110) \\ 
+  & & & & & & \\ 
+ Constant & $-$3.669$^{***}$ & $-$2.160$^{***}$ & $-$2.554$^{***}$ & $-$3.669$^{**}$ & $-$2.160$^{**}$ & $-$2.554$^{**}$ \\ 
+  & (0.593) & (0.339) & (0.393) & (0.693) & (0.381) & (0.435) \\ 
+  & & & & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 6 & 6 & 6 & 6 & 6 & 6 \\ 
+Log Likelihood & $-$11.829 & $-$11.605 & $-$11.387 &  &  &  \\ 
+Akaike Inf. Crit. & 27.659 & 27.210 & 26.774 &  &  &  \\ 
+Pearson's chi-square & 5.454 & 5.072 & 4.900 & 5.454 & 5.072 & 4.900 \\ 
+Deviance & 6.196 & 5.747 & 5.311 & 6.196 & 5.747 & 5.311 \\ 
+SPSE & 0.071 & 0.060 & 0.030 & 0.071 & 0.060 & 0.030 \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{6}{r}{$^{*}$p$<$0.0; $^{**}$p$<$0.01; $^{***}$p$<$0.001} \\ 
+\end{tabular} 
+\end{table} 
+
+```
+
+
+```{r LLO_function, include=FALSE}
+SPSE<- function(data, link = "logit" , quasi = F){
+  .SPSE <- 0
+  for (i in 1:nrow(data)){
+    if (quasi){
+      .m <- glm(data = data[-i,], #LLO
+                positive_prop ~ dose, family = quasibinomial(link),
+                weights = group_size
+                )  
+    }else{
+      .m <- glm(data = data[-i,], #LLO
+                positive_prop ~ dose, family = binomial(link),
+                weights = group_size
+                )
+    }
+    .p <- predict(.m , data[i,], type = "response")
+    .true <-  data[i,"positive_prop"]
+    .SPSE <-  .SPSE + (.p-.true)^2
+    #print(paste(i,.SPSE))
+  }
+  return(as.numeric(.SPSE))
+}
+```
+
+
+
+```{r deviance and pearsons chi-square, include=FALSE}
+# (model_list$logit$model$positive_prop -
+#    model_list$logit$fitted.values)/sqrt(model_list$logit$fitted.values*(1-model_list$logit$fitted.values)/dta$group_size)
+.name <- c()
+.a <- c()
+.rr <- c()
+vSPSE <- c()
+#res and deviance
+for (i in model_list[1:6]){
+  .r <-  residuals(i, type = "pearson")
+  .rr <- c(.rr, .r)
+  .p <- sum(
+      (residuals(i, type = "pearson"))^2
+      )
+  #print("Pearson's chi-square:")
+  .d <- i$deviance
+  .a <- c(.a, .p, .d)
+}
+# LLO
+for (j in c(T,F)){
+   for (linkfunc in .link){
+     if (j) .name <- c(.name, paste0("quasi_",linkfunc))
+     else .name <- c(.name, linkfunc)
+     #print(paste("quasi"))
+  .name <- c(.name, linkfunc)
+  vSPSE <- c(vSPSE, SPSE(dta, linkfunc, T))
+  }
+}
+
+.rr <- .rr %>% matrix(nrow = 6) %>% 
+  as.data.frame()
+colnames(.rr) <- names(model_list)
+.rr <- .rr %>% 
+  mutate(group = 1:6) %>% 
+  relocate(group) %>%
+  pivot_longer(cols = logit:cloglog, 
+               names_to = "model",
+               values_to = "residuals")  
+
+
+.a <- .a %>% matrix(nrow = 2) %>%
+  rbind(vSPSE)%>% 
+  as.data.frame(row.names = c("Pearson's chi-square","Deviance", "SPSE"))
+
+colnames(.a) <- names(model_list)
+.a  %>% xtable::xtable(digits = 3)
+```
+
+The residuals can be seen in Figure \ref{fig:res}. It' noteworthy to point out that group 4 
+has a large positive residual in all the models.
+```{r res, echo=FALSE, fig.cap= "Peason's Residuals From Different Models"}
+ggplot(.rr, aes(x = as.factor(group), y = residuals,
+                pch = model,color = model))+
+  geom_point(size = 3 ) +
+  geom_line(aes(group= model), lwd = .5, lty =4) +
+  geom_abline(intercept = 0, slope = 0, color = "grey30",lty=1 ) + 
+  scale_shape_manual(values=c(18, 19, 17)) + 
+  scale_color_manual(values = c("red", "darkcyan", "darkorange"))+
+  labs(x = "Group",
+        title = "Pearson's Residuals")+
+  theme_classic()
+```
+
+For model choice, except Pearson's chi-square statistic, deviance, leave-one-out cross validation is used to calculate Sum of Prediction Squared Error (SPSE). All these results
+can be seen in \ref{table:glms}
+The calculation of SPSE is as below:  First, extract data except the
+ith observation to fit the model, then calculate the squared error between model prediction
+and the true value of ith observation, iterating i over the whole sample.  Finally sum up the squared errors to get the SPSE. Lower SPSE indicates a better fit.
+
+For all these indices, the complementary log-log 
+yields the lowest value, it seems to have a best fit.
+
+
+### Overdispersion
+Nuisance parameter ($\phi$) can be estimated by $\frac{\text{Deviance}}{n-p}$ or $\frac{\text{Pearson's } \chi^2}{n-p}$
+
+All models have deviance around 6, Pearson's Chi-Square around 5 and $n-p = 6-2= 4.$
+In all the models $\hat\phi >1$, the data is likely suffers from overdispersion.
+To deal with the problem, setting the argument `family ="quasibinomial"` in the `glm()`.
+to perform a quasi-likelihood using $\hat\phi = \frac{\text{Pearson's } \chi^2}{n-p}$.
+The results can be also seen in Table \ref{table:glms}. Coefficients have no changes but 
+larger s.e. (in parentheses) for the estimates.
+
+
+Lastly, To compared the coefficients between models, we might want to refooting 
+the variance.Thus for probit model we times the coefficients by $\frac{\pi}{\sqrt{3}}$and for
+complementary log-log model, times by $\frac{\pi}{\sqrt{6}}$.
+The result can be seen in Table \ref{table:refoot}.
+
+```{r refooting, include=FALSE}
+matrix(c( 
+  model_list$logit$coefficients, 
+  model_list$probit$coefficients * pi/sqrt(3),
+  model_list$cloglog$coefficients * pi/sqrt(6)
+), byrow = T,
+nrow = 3, dimnames = list(c("Logit", "Probit", "C_log-log"), c("Intercept", "dose"))) %>% 
+  xtable::xtable(digits = 3)
+
+```
+```{=latex}
+% latex table generated in R 4.2.3 by xtable 1.8-4 package
+% Fri Nov 24 11:30:58 2023
+\begin{table}[ht] \centering
+  \caption{Refooting Coefficients} 
+  \label{table:refoot}
+\begin{tabular}{rrr}
+  \hline
+ & Intercept & dose \\ 
+  \hline
+Logit & -3.669 & 1.320 \\ 
+  Probit & -3.918 & 1.407 \\ 
+  C\_log-log & -3.275 & 0.976 \\  
+   \hline
+\end{tabular}
+\end{table}
+```
+
+The effect of dose on positive response is lower in complementary log-log link function.
+And from the evaluation of model choice, we found the using complementary log-log
+has the best fitting, evaluation of the effect of dose using complementary log-log link function is more appropriate.
+
+
+# Q2
+Furthermore, consider the link family:
+\[
+g(\mu;\alpha) = \{\log\frac{(1-\mu)^{-\alpha}-1}{\alpha};\alpha>0\},
+\]
+where $\alpha$ is a parameter to be determined.
+Develop a method of determining the optimal value of $\alpha$.
+How would you choose the link function in practice for the data set, using the above link family?
+
+## Ans:
+
+**Observation:**
+
+Figure \ref{fig:linkf} shows different values of $\alpha$ in $g(\cdot)$ and some common link 
+functions. We can see that
+$g(\mu;\alpha=1) = logit(\mu)$ and as $\alpha \to 0, g(\cdot)$ is close to complementary log-log function.
+```{r linkf, echo=FALSE, fig.cap="Plot of Link Functions", message=FALSE, warning=FALSE}
+g <- function(mu, a){
+  .g <- log(((1-mu)^(-a)-1)/a)
+  return(.g)
+}
+alp<- c(.1, .5, 1, 2, 5)
+.grey <- seq(80,15,-15)[1:5]
+for (i in 1:5) {
+  curve(g(x, a = alp[i]), add = (i!=1),ylim = c(-4, 4),
+        lwd = 2.5, col = paste0("grey", .grey[i]),
+        lty = 6,
+        main = "Link Function g",
+        xlab = "mu (pi)", ylab = "eta")
+}
+curve(qlogis(x), add = T ,ylim = c(-4, 4),
+        lwd = 2.5, col = "red", lty=2)
+curve(qnorm(x), add = T ,ylim = c(-4, 4),
+        lwd = 2.5, col = "darkcyan", lty=3)
+curve(log(-log(1-x)), add = T ,ylim = c(-4, 4),
+        lwd = 2.5, col = "darkorange", lty=4)
+legend("bottomright",
+       legend = c(paste("alpha",alp, sep="="), "Logit", "Probit", "C log-log"),
+       col = c(paste0("grey", .grey), "red", "darkcyan", "darkorange"),
+       lty = c(rep(6 ,5), 2, 3, 4), lwd = 2.5, border = "black",
+       cex = .70)
+```
+
+For the selection of $\alpha$, one may perform a grid search. First choosing an
+interval over $[L_0, U_0]$ ($L_0$ should be $\geq0$), and compared the fit (using deviance, for example)
+over models with $\alpha=L_0, \alpha=\frac{U_0-L_0}{2}=M_0 , \alpha=U_0$, (i.e., the boundary and 
+the midpoint).
+For the model with the best fit, we can narrow down the searching interval to $[L_i, U_i]$
+and searching for $\alpha$ with the best fit again. (the rule can be found in Appendix) 
+The searching would be stopped if
+the fit of $\alpha=L_i, \alpha=U_i$ is similar (e.g., the difference of deviance $<\epsilon$)
+or the number of iteration over a maximum $N$.
+The searching should be successful if the fitting indices should be convex over $\alpha$
+and the $\alpha$ with the best fit is included in $[L_0, U_0]$.
+
+Here apply the algorithm to the data,
+we found that the $\alpha=0.2469661$ has the best fit.
+
+### Comparison and Choice between link functions.
+For Logit and Probit link, first, they are both symmetric to $\eta=0$. If the 
+grouped data have similar proportions with extreme values (close to 0 or 1),
+these two link function would be appropriate. The choice between 2 models can
+based on the interpretation of the data: 
+is the odds-ratio interpretation for $\beta$ in Logit or 
+the latent response model in Probit be more appropriate to the data? Or just
+compare the goodness of fit between 2 models.
+
+On the other hand, complementary log-log and the $g(\alpha\neq1)$ function, are both asymmetric.
+For $\alpha<1$, both function were similar, its inverse has approaching to 1 much faster as $\eta$ increase.
+Thus, when the data has many groups with high proportion value, these two link function
+were more appropriate.
+Lastly, when $\alpha>1$, function $g(\cdot)$ approaches to 1 in a slower speed,
+when the data has many groups with low proportion value, the link function
+were more appropriate.
+
+Or one can naively use $g(\cdot)$ to fit the data if a algorithm for choosing $\alpha$
+is available.
+
+
+
+```{r algorithm, include=FALSE}
+# Self defined link function g
+gf <- function(alpha=1){
+  if (alpha < 0) {
+    cat("Error, alpha <0 is not allowed")
+  }
+  linkfun <- function(mu){
+    if (alpha != 0) return(log(((1-mu)^(-alpha)-1)/alpha))  
+    else return(log(-log(1-mu)))
+    }
+  
+  linkinv <- function(eta){
+    if (alpha != 0) return(1-(alpha*exp(eta)+1)^(-1/alpha))
+    else return((1-exp(-exp(eta))))
+    }
+  ## derivative of invlink wrt eta
+  mu.eta <- function(eta){
+    if (alpha!=0) return((alpha*exp(eta)+1)^((-1/alpha)-1)*exp(eta))
+    else return( exp(-exp(eta))*exp(eta) )
+  } 
+  valideta <- function(eta) TRUE
+  link <- paste0("g(", alpha, ")")
+  structure(list(linkfun = linkfun, linkinv = linkinv,
+               mu.eta = mu.eta, valideta = valideta, name = link),
+          class = "link-glm")
+}
+
+# This allow a shortcut for calling glm
+working_model <- function(alpha){
+  return (
+    glm(data = dta,
+        positive_prop ~ dose, family = binomial(link = gf(alpha=alpha)),
+        weights = group_size)
+    )
+} 
+# 
+find_alpha <- function(u=5, l=0, crit=10^(-5), N=100){
+  eps <- 10
+  itinterv <-  c(l, u)
+  i = 0 #iteration counter
+  while (eps > crit){ #stopping criterion
+    md <- mean(itinterv)
+    .range <- itinterv[2] - itinterv[1]
+    #calculate deviance
+    dev <- c(working_model(itinterv[1])$deviance,
+             working_model(md)$deviance,
+             working_model(itinterv[2])$deviance)
+    if (which.min(dev) ==1){ 
+      if (itinterv[1] - (md/(i*10))<0) itinterv <- c(itinterv[1], md) #not allow <0
+      else itinterv <- c(itinterv[1] - (md/(i*10)), md)
+      }
+    else if(which.min(dev) == 3) itinterv <- c(md, itinterv[2] + (md/(i*10)))
+    else itinterv <- c(md-(.range/4), md+(.range/4))
+    #cat(itinterv)
+    eps <- abs(working_model(itinterv[2])$deviance - working_model(itinterv[1])$deviance)
+    #print(eps)
+    i <- i+1
+    if(i>N){print("Over 100 iteration"); break}
+  }
+  #print(i)
+  alphaset <- c(itinterv[1], mean(itinterv), itinterv[2])
+  dev <- c(working_model(itinterv[1])$deviance,
+           working_model(mean(itinterv))$deviance,
+           working_model(itinterv[2])$deviance)
+  return(alphaset[which.min(dev)])
+}
+find_alpha()
+```
+
+# Appendix: 
+
+All the codes used in the report can be found in *[Here](https://github.com/wcnoname5/regression/tree/main/Quiz5_due_1126)*
+
+## The Algorithm of Updating Searching Intervals
+In each iteration, we compared the fit over upper/lower-bound and the 
+midpoint($U_i, L_i, M_i(=\frac{U_i-L_i}{2})$).  On updating rules, consider 3 cases:
+
+1.    $\alpha=L_i$ has the minimum deviance: update 
+      $L_{i+1} = L_i-\Delta_i$, $U_{i+1} = M_i$
+      
+2.    $\alpha=U_i$ has the minimum deviance: update $L_{i+1} = M_i$,
+      $U_{i+1} = U_i+\Delta_i$
+      
+3.    $\alpha=M_i$ has the minimum deviance: update $L_{i+1} = M_i + \frac{U_i-L_i}{4}$,
+      $U_{i+1} = M_i - \frac{U_i-L_i}{4}$
+      
+Where $\Delta_i = \frac{M_i}{i\times10}$ is quite an arbitrary form.  
+
