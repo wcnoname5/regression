@@ -275,35 +275,51 @@ to perform a quasi-likelihood using $\hat\phi = \frac{\text{Pearson's } \chi^2}{
 The results can be also seen in Table \ref{table:glms}. Coefficients have no changes but 
 larger s.e. (in parentheses) for the estimates.
 
-
 Lastly, To compared the coefficients between models, we might want to refooting 
-the variance.Thus for probit model we times the coefficients by $\frac{\pi}{\sqrt{3}}$and for
-complementary log-log model, times by $\frac{\pi}{\sqrt{6}}$.
+the mean and variance of the inverse link function to 0, 1.
+Thus for Logit model we divide the coefficients by $\frac{\pi}{\sqrt{3}}$and for
+complementary log-log model, for the intercept term, subtract by $-0.5772$ first,
+then divide all coefficients by $\frac{\pi}{\sqrt{6}}$ .
 The result can be seen in Table \ref{table:refoot}.
 
 ```{r refooting, include=FALSE}
 matrix(c( 
-  model_list$logit$coefficients, 
-  model_list$probit$coefficients * pi/sqrt(3),
-  model_list$cloglog$coefficients * pi/sqrt(6)
-), byrow = T,
-nrow = 3, dimnames = list(c("Logit", "Probit", "C_log-log"), c("Intercept", "dose"))) %>% 
+  model_list$logit$coefficients /( pi/sqrt(3)), 
+  model_list$probit$coefficients ,
+  c(model_list$cloglog$coefficients[1]+0.5772,
+    model_list$cloglog$coefficients[2]
+    )/ (pi/sqrt(6))),
+  byrow = F,
+  nrow = 2, dimnames = list( c("Intercept", "dose"),
+                           c("Logit", "Probit", "C_log-log"))) %>% 
   xtable::xtable(digits = 3)
 
 ```
+```{r refooting by logit, include=FALSE}
+matrix(c( 
+  model_list$logit$coefficients , 
+  model_list$probit$coefficients*( pi/sqrt(3)) ,
+  c(model_list$cloglog$coefficients[1]+0.5772,
+    model_list$cloglog$coefficients[2]
+    )* (sqrt(2))),
+  byrow = F,
+  nrow = 2, dimnames = list( c("Intercept", "dose"),
+                           c("Logit", "Probit", "C_log-log"))) %>% 
+  xtable::xtable(digits = 3)
+```
+
 ```{=latex}
 % latex table generated in R 4.2.3 by xtable 1.8-4 package
 % Fri Nov 24 11:30:58 2023
 \begin{table}[ht] \centering
   \caption{Refooting Coefficients} 
   \label{table:refoot}
-\begin{tabular}{rrr}
+\begin{tabular}{rrrr}
   \hline
- & Intercept & dose \\ 
+ & Logit & Probit & C\_log-log \\ 
   \hline
-Logit & -3.669 & 1.320 \\ 
-  Probit & -3.918 & 1.407 \\ 
-  C\_log-log & -3.275 & 0.976 \\  
+Intercept & -2.023 & -2.160 & -1.541 \\ 
+  dose & 0.728 & 0.776 & 0.593 \\ 
    \hline
 \end{tabular}
 \end{table}

@@ -160,11 +160,14 @@ ggplot(.rr, aes(x = as.factor(group), y = residuals,
   theme_classic()
 ## refooting
 matrix(c( 
-  model_list$logit$coefficients, 
-  model_list$probit$coefficients * pi/sqrt(3),
-  model_list$cloglog$coefficients * pi/sqrt(6)
-), byrow = T,
-nrow = 3, dimnames = list(c("Logit", "Probit", "C_log-log"), c("Intercept", "dose"))) %>% 
+  model_list$logit$coefficients /( pi/sqrt(3)), 
+  model_list$probit$coefficients ,
+  c(model_list$cloglog$coefficients[1]+0.5772,
+    model_list$cloglog$coefficients[2]
+  )/ (pi/sqrt(6))),
+  byrow = F,
+  nrow = 2, dimnames = list( c("Intercept", "dose"),
+                             c("Logit", "Probit", "C_log-log"))) %>% 
   xtable::xtable(digits = 3)
 
 
